@@ -59,6 +59,11 @@ resource "helm_release" "ibmcloud_config" {
   version      = "0.1.3"
   namespace    = local.config_namespace
 
+  set_sensitive {
+    name  = "apikey"
+    value = "bogus"
+  }
+
   set {
     name  = "resource_group"
     value = var.resource_group_name
