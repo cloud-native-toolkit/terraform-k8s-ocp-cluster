@@ -17,17 +17,36 @@ locals {
   cluster_name          = "crc"
   tls_secret_file       = ""
   tmp_dir               = "${path.cwd}/.tmp"
-  registry_url          = "image-registry.openshift-image-registry:5000"
+  registry_url          = "image-registry.openshift-image-registry.svc:5000"
   ibmcloud_release_name = "ibmcloud-config"
-  cluster_type          = var.cluster_type == "ocp3" ? "openshift" : (var.cluster_type == "ocp4" ? "openshift" : var.cluster_type)
+  cluster_type_cleaned  = regex("(kubernetes|iks|openshift|ocp3|ocp4).*", var.cluster_type)[0]
+  cluster_type          = local.cluster_type_cleaned == "ocp3" ? "openshift" : (local.cluster_type_cleaned == "ocp4" ? "openshift" : (local.cluster_type_cleaned == "iks" ? "kubernetes" : local.cluster_type_cleaned))
   # value should be ocp4, ocp3, or kubernetes
-  cluster_type_code     = var.cluster_type == "openshift" ? "ocp3" : var.cluster_type
-  cluster_type_tag      = var.cluster_type == "kubernetes" ? "iks" : "ocp"
+  cluster_type_code     = local.cluster_type_cleaned == "openshift" ? "ocp3" : (local.cluster_type_cleaned == "iks" ? "kubernetes" : local.cluster_type_cleaned)
+  cluster_type_tag      = local.cluster_type == "kubernetes" ? "iks" : "ocp"
 }
 
 resource "null_resource" "oc_login" {
+  count = local.cluster_type == "openshift" ? 1 : 0
+
+  triggers = {
+    always_run = timestamp()
+  }
+
   provisioner "local-exec" {
     command = "oc login --insecure-skip-tls-verify=true -u ${var.login_user} -p ${var.login_password} --server=${var.server_url} > /dev/null"
+  }
+}
+
+resource "null_resource" "delete_ibmcloud_chart" {
+  depends_on = [null_resource.oc_login]
+
+  provisioner "local-exec" {
+    command = "${path.module}/scripts/helm3-uninstall.sh ${local.ibmcloud_release_name} ${local.config_namespace}"
+
+    environment = {
+      KUBECONFIG = local.config_file_path
+    }
   }
 }
 
@@ -57,7 +76,7 @@ resource "helm_release" "ibmcloud_config" {
 
   set {
     name  = "cluster_name"
-    value = var.cluster_name
+    value = var.cluster_type
   }
 
   set {
@@ -68,5 +87,10 @@ resource "helm_release" "ibmcloud_config" {
   set {
     name  = "registry_url"
     value = local.registry_url
+  }
+
+  set {
+    name  = "registry_namespace"
+    value = var.registry_namespace
   }
 }
