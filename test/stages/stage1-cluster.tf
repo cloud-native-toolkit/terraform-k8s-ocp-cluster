@@ -1,5 +1,5 @@
 module "dev_cluster" {
-  source = "../../module"
+  source = "./module"
 
   cluster_type            = var.cluster_type
   login_user              = var.login_user
