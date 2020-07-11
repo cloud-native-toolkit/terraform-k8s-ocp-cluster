@@ -24,6 +24,8 @@ locals {
   # value should be ocp4, ocp3, or kubernetes
   cluster_type_code     = local.cluster_type_cleaned == "openshift" ? "ocp3" : (local.cluster_type_cleaned == "iks" ? "kubernetes" : local.cluster_type_cleaned)
   cluster_type_tag      = local.cluster_type == "kubernetes" ? "iks" : "ocp"
+  ingress_subdomain     = var.ingress_subdomain != "" ? var.ingress_subdomain : data.local_file.ingress_subdomain.content
+  ingress_subdomain_file = "${local.tmp_dir}/ingress_subdomain.val"
 }
 
 resource "null_resource" "oc_login" {
@@ -48,6 +50,25 @@ resource "null_resource" "delete_ibmcloud_chart" {
       KUBECONFIG = local.config_file_path
     }
   }
+}
+
+resource "null_resource" "get_ingress_subdomain" {
+  depends_on = [null_resource.oc_login]
+  count = local.cluster_type_code == "ocp4" ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "${path.module}/scripts/get-ingress-subdomain.sh ${local.ingress_subdomain_file}"
+
+    environment = {
+      KUBECONFIG = local.config_file_path
+    }
+  }
+}
+
+data "local_file" "ingress_subdomain" {
+  depends_on = [null_resource.get_ingress_subdomain]
+
+  filename = local.ingress_subdomain_file
 }
 
 resource "helm_release" "ibmcloud_config" {
@@ -97,5 +118,10 @@ resource "helm_release" "ibmcloud_config" {
   set {
     name  = "registry_namespace"
     value = var.registry_namespace
+  }
+
+  set {
+    name  = "ingress_subdomain"
+    value = local.ingress_subdomain
   }
 }
