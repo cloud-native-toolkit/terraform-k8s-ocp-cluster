@@ -54,7 +54,7 @@ resource "null_resource" "delete_ibmcloud_chart" {
 
 resource "null_resource" "get_ingress_subdomain" {
   depends_on = [null_resource.oc_login]
-  count = local.cluster_type_code == "ocp4" ? 1 : 0
+  count = var.ingress_subdomain == "" ? 1 : 0
 
   provisioner "local-exec" {
     command = "${path.module}/scripts/get-ingress-subdomain.sh ${local.ingress_subdomain_file}"
