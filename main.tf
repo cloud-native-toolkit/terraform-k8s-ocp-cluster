@@ -70,6 +70,12 @@ locals {
   }
 }
 
+resource "null_resource" "create_dirs" {
+  provisioner "local-exec" {
+    command = "mkdir -p ${local.tmp_dir}"
+  }
+}
+
 resource "null_resource" "oc_login" {
   count = local.cluster_type == "openshift" ? 1 : 0
 
@@ -83,7 +89,7 @@ resource "null_resource" "oc_login" {
 }
 
 resource "null_resource" "get_ingress_subdomain" {
-  depends_on = [null_resource.oc_login]
+  depends_on = [null_resource.oc_login, null_resource.create_dirs]
   count = var.ingress_subdomain == "" ? 1 : 0
 
   provisioner "local-exec" {
@@ -102,7 +108,7 @@ data "local_file" "ingress_subdomain" {
 }
 
 resource "null_resource" "get_console_host" {
-  depends_on = [null_resource.oc_login]
+  depends_on = [null_resource.oc_login, null_resource.create_dirs]
 
   provisioner "local-exec" {
     command = "kubectl get -n openshift-console route/console -o jsonpath='{.spec.host}' > ${local.console_host_file}"
@@ -120,6 +126,8 @@ data "local_file" "console_host" {
 }
 
 resource "null_resource" "setup-chart" {
+  depends_on = [null_resource.create_dirs]
+
   provisioner "local-exec" {
     command = "mkdir -p ${local.chart_dir} && cp -R ${path.module}/chart/${local.chart_name}/* ${local.chart_dir}"
   }
