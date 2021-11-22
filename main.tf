@@ -1,12 +1,7 @@
 provider "helm" {
-  version = ">= 1.1.1"
-
   kubernetes {
     config_path = local.cluster_config
   }
-}
-
-provider "null" {
 }
 
 locals {
